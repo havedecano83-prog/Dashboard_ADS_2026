@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Dashboard Comisiones</title>
+    <!-- Librería Profesional de Gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --primary: #0f172a; --primary-header: #1e293b; --accent: #2563eb; --accent-hover: #1d4ed8;
+            --success: #10b981; --warning: #f59e0b; --danger: #dc2626; 
+            --bg: #f8fafc; --card-bg: #ffffff; --text: #334155; --border: #e2e8f0;
+            --purple: #8b5cf6; --purple-hover: #7c3aed;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        
+        .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15); border-bottom: 4px solid var(--accent);}
+        .header h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;}
+        
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.2s; font-size: 13px; display: flex; align-items: center; gap: 6px;}
+        .btn-import { background: var(--accent); color: white; }
+        .btn-import:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);}
+        .btn-sync { background: var(--purple); color: white; }
+        .btn-sync:hover { background: var(--purple-hover); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);}
+        .btn-save { background: var(--success); color: white; }
+        .btn-save:hover { background: #059669; }
+
+        .tabs { display: flex; gap: 8px; margin-bottom: 0; overflow-x: auto; padding-left: 10px; padding-bottom: 5px; }
+        .tab { padding: 12px 20px; background: #e2e8f0; border: none; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: 700; color: #475569; transition: 0.3s; font-size: 13px; white-space: nowrap; }
+        .tab.active { background: var(--card-bg); color: var(--accent); border-top: 3px solid var(--accent); box-shadow: 0 -3px 6px rgba(0,0,0,0.02);}
+
+        .container { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow-x: auto; margin-bottom: 20px;}
+        
+        /* Contenedor Gráfica (Oculto por defecto, se muestra por JS solo en AÑO 2026) */
+        .chart-container { display: none; background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; height: 350px; border: 1px solid var(--border);}
+
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        
+        th { background: #1e293b; border-bottom: 2px solid var(--border); padding: 15px; text-align: left; color: #ffffff; font-weight: 800; font-size: 13px; text-transform: uppercase;}
+        
+        td { border-bottom: 1px solid var(--border); padding: 8px 15px; vertical-align: middle; }
+        
+        input[type="number"] { width: 110px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; text-align: right; transition: 0.2s; font-weight: 500; color: #0f172a;}
+        input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);}
+        
+        input.negative-val, td.negative-val { color: #dc2626 !important; font-weight: 800; background-color: #fef2f2; border-color: #fca5a5;}
+        .total-cell { font-weight: 700; color: var(--primary); text-align: right; padding-right: 25px; font-size: 15px;}
+        .total-cell.negative-val { color: #dc2626 !important; font-weight: 900;}
+        
+        .summary-row { background: #f0fdf4; border-top: 2px solid var(--success);}
+        .summary-row td { font-weight: bold; font-size: 16px; color: #166534; }
+
+        /* MÓDULO FINANCIERO */
+        .finance-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); overflow: hidden;}
+        
+        .card h3 { 
+            background: linear-gradient(90deg, #1e293b, #334155); 
+            color: white; 
+            padding: 15px 25px; 
+            margin: -25px -25px 20px -25px; 
+            font-size: 18px; 
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .finance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .metric-box { background: #f8fafc; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid var(--border);}
+        .metric-box label { display: block; font-size: 11px; color: #64748b; font-weight: 800; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .metric-box .value { font-size: 24px; font-weight: 900; color: var(--primary); }
+        .metric-box .sub-value { font-size: 13px; color: #64748b; margin-top: 5px; font-weight: 600;}
+        .badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 800; display: inline-block; margin-top: 10px; letter-spacing: 0.5px;}
+        .badge.warning { background: #fef3c7; color: #b45309; }
+        .badge.success { background: #dcfce3; color: #166534; }
+        .progress-container { width: 100%; background: #e2e8f0; border-radius: 10px; height: 10px; margin-top: 15px; overflow: hidden;}
+        .progress-bar { height: 100%; background: var(--accent); transition: width 0.5s ease-in-out; }
+
+        /* Modales */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; padding: 35px; border-radius: 16px; width: 420px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+        .modal h2 { margin-top: 0; margin-bottom: 10px; font-size: 20px; color: var(--primary); }
+        .form-group { margin-bottom: 20px; margin-top: 20px;}
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 700; color: #334155; font-size: 14px;}
+        .form-group input[type="file"], .form-group input[type="date"] { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px;}
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 30px; }
+        .btn-cancel { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;}
+        .btn-cancel:hover { background: #e2e8f0; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📊 Dashboard Comisiones</h1>
+    <div class="btn-group">
+        <button class="btn btn-import" onclick="openModal('dailyModal')">➕ Archivo Looker</button>
+        <button class="btn btn-sync" onclick="openModal('syncModal')">📥 Importar Mes Completo</button>
+        <button class="btn btn-save" onclick="saveData()">💾 Guardar Sistema</button>
+    </div>
+</div>
+
+<div class="tabs" id="monthTabs"></div>
+
+<!-- Gráfica Profesional -->
+<div class="chart-container" id="chartWrapper">
+    <canvas id="performanceChart"></canvas>
+</div>
+
+<div class="container">
+    <table>
+        <thead id="tableHead">
+            <!-- Se llena por JS -->
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot>
+            <tr class="summary-row">
+                <td id="footer-title">TOTAL MENSUAL</td>
+                <td id="sum-fb">0.00</td>
+                <td id="sum-tt">0.00</td>
+                <td id="sum-gg">0.00</td>
+                <td id="sum-total" class="total-cell">0.00</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<div class="finance-panel" id="financePanel">
+    <div class="card">
+        <h3>🎯 Ritmo de Meta (Pacing)</h3>
+        <div class="finance-grid">
+            <div class="metric-box">
+                <label>Objetivo Actual</label>
+                <div class="value" id="next-milestone">$0.00</div>
+                <div id="status-badge" class="badge warning">AÚN FALTA</div>
+            </div>
+            <div class="metric-box">
+                <label>Falta para llegar</label>
+                <div class="value" style="color: var(--warning);" id="diff-amount">$0.00</div>
+                <div class="sub-value" id="days-left">Dividido 0 días</div>
+            </div>
+            <div class="metric-box" style="grid-column: span 2;">
+                <label>Exigencia Diaria Restante</label>
+                <div class="value" style="color: var(--accent);" id="daily-needed">$0.00 / día</div>
+                <div class="progress-container"><div class="progress-bar" id="progress-bar" style="width: 0%;"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>💰 Liquidación de Comisiones</h3>
+        <div class="finance-grid">
+            <div class="metric-box">
+                <label>Tramos Superados</label>
+                <div class="value" id="milestones-hit">0</div>
+                <div class="sub-value" id="milestone-details" style="color: var(--success); font-weight: 800;">TRAMO SUPERADO: $0</div>
+            </div>
+            <div class="metric-box">
+                <label>Total en USD</label>
+                <div class="value" style="color: var(--success);" id="com-usd">$0.00</div>
+            </div>
+            <div class="metric-box">
+                <label>Tipo de Cambio (PYG)</label>
+                <input type="number" id="exchange-rate" value="6540.45" style="width: 100%; text-align: center; font-size: 18px; font-weight: 800; margin-top: 5px; color: #0f172a; border-color: #cbd5e1;" onchange="calculateFinance()">
+            </div>
+            <div class="metric-box" style="background: #ecfdf5; border: 2px solid #a7f3d0;">
+                <label>A COBRAR (GUARANÍES)</label>
+                <div class="value" style="color: #047857;" id="com-pyg">0 Gs.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 1: Archivo Looker -->
+<div class="modal-overlay" id="dailyModal">
+    <div class="modal">
+        <h2>Inyección Diaria</h2>
+        <p style="font-size:13px; color:#64748b; margin-top:-5px;">Sube los reportes diarios de Looker.</p>
+        <div class="form-group"><label>1. Fecha del reporte:</label><input type="date" id="targetDate"></div>
+        <div class="form-group"><label>2. Adjuntar CSVs (FB, TT, GG):</label><input type="file" id="lookerFiles" multiple accept=".csv"></div>
+        <div class="modal-buttons">
+            <button class="btn btn-cancel" onclick="closeModal('dailyModal')">Cancelar</button>
+            <button class="btn btn-import" onclick="processDailyLooker()">Procesar Día</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Importación Masiva -->
+<div class="modal-overlay" id="syncModal">
+    <div class="modal">
+        <h2>Sincronización Maestra</h2>
+        <p style="font-size:13px; color:#64748b; margin-top:-5px;">Sube tu planilla mensual (CSV) <strong>o un Backup (.json)</strong> para restaurar tus datos si el navegador los borró.</p>
+        <div class="form-group"><label>Adjuntar Archivo:</label><input type="file" id="masterFile" accept=".csv, .json"></div>
+        <div class="modal-buttons">
+            <button class="btn btn-cancel" onclick="closeModal('syncModal')">Cancelar</button>
+            <button class="btn btn-sync" onclick="processMasterCSV()">Importar Datos</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const months = [
+        { id: "2026-01", name: "ENERO.2026", days: 31 }, { id: "2026-02", name: "FEBRERO.2026", days: 28 },
+        { id: "2026-03", name: "MARZO.2026", days: 31 }, { id: "2026-04", name: "ABRIL.2026", days: 30 },
+        { id: "2026-05", name: "MAYO.2026", days: 31 }, { id: "2026-06", name: "JUNIO.2026", days: 30 },
+        { id: "2026-07", name: "JULIO.2026", days: 31 }, { id: "2026-08", name: "AGOSTO.2026", days: 31 },
+        { id: "2026-09", name: "SETIEMBRE.2026", days: 30 }, { id: "2026-10", name: "OCTUBRE.2026", days: 31 },
+        { id: "2026-11", name: "NOVIEMBRE.2026", days: 30 }, { id: "2026-12", name: "DICIEMBRE.2026", days: 31 },
+        { id: "year", name: "AÑO 2026", days: 0 } 
+    ];
+    
+    const milestones = [10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000, 60000, 65000, 70000, 75000, 80000, 85000, 90000, 95000];
+
+    let currentMonthIdx = 0; 
+    let database = {};
+    
+    // Motor de carga seguro
+    try {
+        let stored = localStorage.getItem('adsDatabaseMaster');
+        if (stored) database = JSON.parse(stored);
+    } catch(e) {
+        console.error("Error leyendo database", e);
+        database = {};
+    }
+
+    let savedRate = localStorage.getItem('exchangeRateMaster') || 6540.45;
+    document.getElementById('exchange-rate').value = savedRate;
+    
+    let chartInstance = null; 
+
+    function init() {
+        const tabContainer = document.getElementById('monthTabs');
+        months.forEach((m, index) => {
+            let btn = document.createElement('button');
+            btn.className = `tab ${index === currentMonthIdx ? 'active' : ''}`;
+            btn.innerText = m.name;
+            btn.onclick = () => switchMonth(index);
+            tabContainer.appendChild(btn);
+        });
+        
+        let yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+        document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
+        renderTable();
+    }
+
+    function switchMonth(index) {
+        currentMonthIdx = index;
+        document.querySelectorAll('.tab').forEach((t, i) => t.className = `tab ${i === currentMonthIdx ? 'active' : ''}`);
+        renderTable();
+    }
+
+    function renderChart(labels, fbData, ttData, ggData) {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy(); 
+        
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Meta ADS', data: fbData, backgroundColor: '#2563eb', borderRadius: 4 }, // Azul
+                    { label: 'TikTok ADS', data: ttData, backgroundColor: '#eab308', borderRadius: 4 }, // Amarillo
+                    { label: 'Google ADS', data: ggData, backgroundColor: '#dc2626', borderRadius: 4 }  // Rojo
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { font: { family: 'Segoe UI', weight: 'bold' } } },
+                    tooltip: { mode: 'index', intersect: false, callbacks: { label: function(context) { return context.dataset.label + ': $' + context.raw.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); } } }
+                },
+                scales: {
+                    x: { stacked: false, grid: { display: false } },
+                    y: { stacked: false, ticks: { callback: function(value) { return '$' + value; } } }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false }
+            }
+        });
+    }
+
+    function renderTable() {
+        const body = document.getElementById('tableBody');
+        const thead = document.getElementById('tableHead');
+        const chartContainer = document.getElementById('chartWrapper');
+        const financePanel = document.getElementById('financePanel');
+        body.innerHTML = '';
+        const monthData = months[currentMonthIdx];
+        
+        let totalFb = 0, totalTt = 0, totalGg = 0, totalGlobal = 0;
+        let daysWithDataCount = 0;
+
+        let cLabels = [], cFb = [], cTt = [], cGg = [];
+
+        if (monthData.id === "year") {
+            chartContainer.style.display = 'block';
+            financePanel.style.display = 'none';
+
+            thead.innerHTML = `<tr><th>Mes Calendario</th><th>Meta ADS (FB)</th><th>TikTok ADS (TT)</th><th>Google ADS (GG)</th><th style="text-align: right; padding-right: 25px;">TOTAL NETREV</th></tr>`;
+            document.getElementById('footer-title').innerText = "TOTAL ANUAL 2026";
+
+            let yearlyFb = new Array(12).fill(0);
+            let yearlyTt = new Array(12).fill(0);
+            let yearlyGg = new Array(12).fill(0);
+
+            Object.keys(database).forEach(date => {
+                if(date.startsWith('2026-')) {
+                    let mIdx = parseInt(date.split('-')[1]) - 1;
+                    yearlyFb[mIdx] += parseFloat(database[date].fb) || 0;
+                    yearlyTt[mIdx] += parseFloat(database[date].tt) || 0;
+                    yearlyGg[mIdx] += parseFloat(database[date].gg) || 0;
+                }
+            });
+
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Setiembre", "Octubre", "Noviembre", "Diciembre"];
+
+            for(let i = 0; i < 12; i++) {
+                let f = yearlyFb[i], t = yearlyTt[i], g = yearlyGg[i];
+                let tot = f + t + g;
+                
+                if(tot !== 0) daysWithDataCount += 30; 
+
+                totalFb += f; totalTt += t; totalGg += g; totalGlobal += tot;
+
+                cLabels.push(monthNames[i]); cFb.push(f); cTt.push(t); cGg.push(g);
+
+                let fbClass = f < 0 ? 'negative-val' : '';
+                let ttClass = t < 0 ? 'negative-val' : '';
+                let ggClass = g < 0 ? 'negative-val' : '';
+                let totalClass = tot < 0 ? 'total-cell negative-val' : 'total-cell';
+
+                body.innerHTML += `
+                    <tr>
+                        <td style="font-weight: 700; color: #1e293b;">${monthNames[i].toUpperCase()} 2026</td>
+                        <td class="${fbClass}" style="font-weight: 500; text-align:right;">${f.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                        <td class="${ttClass}" style="font-weight: 500; text-align:right;">${t.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                        <td class="${ggClass}" style="font-weight: 500; text-align:right;">${g.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                        <td class="${totalClass}">${tot.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    </tr>
+                `;
+            }
+            renderChart(cLabels, cFb, cTt, cGg);
+
+        } else {
+            chartContainer.style.display = 'none';
+            financePanel.style.display = 'grid';
+
+            thead.innerHTML = `<tr><th>Fecha Calendario</th><th>Meta ADS (FB)</th><th>TikTok ADS (TT)</th><th>Google ADS (GG)</th><th style="text-align: right; padding-right: 25px;">TOTAL NETREV</th></tr>`;
+            document.getElementById('footer-title').innerText = "TOTAL MENSUAL";
+
+            for(let i = 1; i <= monthData.days; i++) {
+                let dateStr = `${monthData.id}-${String(i).padStart(2, '0')}`;
+                let rowData = database[dateStr] || { fb: '', tt: '', gg: '' };
+                
+                let fbVal = parseFloat(rowData.fb) || 0;
+                let ttVal = parseFloat(rowData.tt) || 0;
+                let ggVal = parseFloat(rowData.gg) || 0;
+                let total = (fbVal + ttVal + ggVal);
+
+                if(fbVal !== 0 || ttVal !== 0 || ggVal !== 0) daysWithDataCount++;
+
+                totalFb += fbVal; totalTt += ttVal; totalGg += ggVal; totalGlobal += total;
+
+                let fbClass = fbVal < 0 ? 'negative-val' : '';
+                let ttClass = ttVal < 0 ? 'negative-val' : '';
+                let ggClass = ggVal < 0 ? 'negative-val' : '';
+                let totalClass = total < 0 ? 'total-cell negative-val' : 'total-cell';
+
+                body.innerHTML += `
+                    <tr>
+                        <td style="font-weight: 600; color: #475569;">${dateStr}</td>
+                        <td><input type="number" step="0.01" class="${fbClass}" value="${rowData.fb}" onchange="updateVal('${dateStr}', 'fb', this.value)"></td>
+                        <td><input type="number" step="0.01" class="${ttClass}" value="${rowData.tt}" onchange="updateVal('${dateStr}', 'tt', this.value)"></td>
+                        <td><input type="number" step="0.01" class="${ggClass}" value="${rowData.gg}" onchange="updateVal('${dateStr}', 'gg', this.value)"></td>
+                        <td class="${totalClass}">${total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    </tr>
+                `;
+            }
+        }
+
+        document.getElementById('sum-fb').innerText = totalFb.toLocaleString('en-US', {minimumFractionDigits:2});
+        document.getElementById('sum-tt').innerText = totalTt.toLocaleString('en-US', {minimumFractionDigits:2});
+        document.getElementById('sum-gg').innerText = totalGg.toLocaleString('en-US', {minimumFractionDigits:2});
+        document.getElementById('sum-total').innerText = totalGlobal.toLocaleString('en-US', {minimumFractionDigits:2});
+
+        let totalDaysParam = monthData.id === "year" ? 365 : monthData.days;
+        calculateFinance(totalGlobal, totalDaysParam, daysWithDataCount);
+    }
+
+    function calculateFinance(totalGlobal = null, monthDays = null, daysWithData = null) {
+        if(totalGlobal === null) {
+            totalGlobal = parseFloat(document.getElementById('sum-total').innerText.replace(/,/g, ''));
+            monthDays = months[currentMonthIdx].id === "year" ? 365 : months[currentMonthIdx].days;
+            daysWithData = 0; 
+            document.querySelectorAll('#tableBody tr').forEach(row => {
+               if(parseFloat(row.querySelector('.total-cell').innerText.replace(/,/g, '')) !== 0) daysWithData++;
+            });
+        }
+
+        let reachedCount = 0; let target = milestones[0]; let previousMilestone = 0;
+        for(let i=0; i<milestones.length; i++) {
+            if(totalGlobal >= milestones[i]) { reachedCount++; previousMilestone = milestones[i]; } 
+            else { target = milestones[i]; break; }
+        }
+
+        let diferencia = Math.max(target - totalGlobal, 0); 
+        let daysLeft = Math.max(monthDays - daysWithData, 1);
+        let dailyNeeded = diferencia / daysLeft;
+        
+        let comisionUSD = reachedCount * 200;
+        let rate = parseFloat(document.getElementById('exchange-rate').value) || 0;
+        localStorage.setItem('exchangeRateMaster', rate); 
+        let comisionPYG = comisionUSD * rate;
+
+        document.getElementById('next-milestone').innerText = `$${target.toLocaleString('en-US')}`;
+        document.getElementById('diff-amount').innerText = `$${diferencia.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+        document.getElementById('days-left').innerText = `Dividido ${daysLeft} días restantes`;
+        
+        document.getElementById('daily-needed').innerText = `$${dailyNeeded.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} / día`;
+        
+        let badge = document.getElementById('status-badge');
+        if (totalGlobal >= target) { badge.className = "badge success"; badge.innerText = "¡LLEGASTE! 🎉"; } 
+        else { badge.className = "badge warning"; badge.innerText = "AÚN FALTA"; }
+
+        let range = target - previousMilestone;
+        let progressPct = range > 0 ? ((totalGlobal - previousMilestone) / range) * 100 : 100;
+        document.getElementById('progress-bar').style.width = `${Math.min(Math.max(progressPct, 0), 100)}%`;
+
+        document.getElementById('milestones-hit').innerText = reachedCount;
+        
+        if(reachedCount > 0) {
+            document.getElementById('milestone-details').innerText = `TRAMO SUPERADO: $${previousMilestone.toLocaleString('en-US')}`;
+        } else {
+            document.getElementById('milestone-details').innerText = `TRAMO SUPERADO: $0`;
+        }
+
+        document.getElementById('com-usd').innerText = `$${comisionUSD.toLocaleString('en-US')}`;
+        document.getElementById('com-pyg').innerText = `${comisionPYG.toLocaleString('es-PY', {maximumFractionDigits:0})} Gs.`;
+    }
+
+    function updateVal(date, field, val) {
+        if(!database[date]) database[date] = { fb: '', tt: '', gg: '' };
+        database[date][field] = val; 
+        localStorage.setItem('adsDatabaseMaster', JSON.stringify(database)); 
+        renderTable();
+    }
+
+    function saveData() { 
+        localStorage.setItem('adsDatabaseMaster', JSON.stringify(database)); 
+        let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(database));
+        let dlAnchorElem = document.createElement('a');
+        dlAnchorElem.setAttribute("href", dataStr);
+        dlAnchorElem.setAttribute("download", "Backup_Dashboard_2026.json");
+        document.body.appendChild(dlAnchorElem);
+        dlAnchorElem.click();
+        dlAnchorElem.remove();
+        alert("✅ Datos guardados y archivo de Backup descargado. Si el navegador borra tu historial, podrás usar este archivo en 'Importar Mes Completo' para recuperar todo."); 
+    }
+
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    
+    function splitCSV(str) {
+        let result = [], cur = '', inQuotes = false;
+        for (let i = 0; i < str.length; i++) {
+            let char = str[i];
+            if (char === '"') inQuotes = !inQuotes;
+            else if (char === ',' && !inQuotes) { result.push(cur); cur = ''; }
+            else cur += char;
+        }
+        result.push(cur); return result;
+    }
+
+    function standardizeDateBulk(rawDate) {
+        if(!rawDate) return null;
+        rawDate = rawDate.trim();
+        if(/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate;
+        if(rawDate.includes('/')) {
+            let parts = rawDate.split('/');
+            if(parts.length === 3) {
+                let day = parts[0].padStart(2, '0');
+                let month = parts[1].padStart(2, '0');
+                let year = parts[2];
+                return `${year}-${month}-${day}`;
+            }
+        }
+        return null;
+    }
+
+    async function processMasterCSV() {
+        const fileInput = document.getElementById('masterFile');
+        if(fileInput.files.length === 0) return alert("❌ Sube el archivo.");
+        
+        let file = fileInput.files[0];
+
+        if(file.name.endsWith('.json')) {
+            let text = await file.text();
+            try {
+                let importedData = JSON.parse(text);
+                database = { ...database, ...importedData };
+                localStorage.setItem('adsDatabaseMaster', JSON.stringify(database));
+                renderTable();
+                closeModal('syncModal');
+                fileInput.value = '';
+                return alert("✅ Backup restaurado exitosamente. Se recuperaron tus datos.");
+            } catch(e) {
+                return alert("❌ Error: Archivo de Backup no válido.");
+            }
+        }
+
+        let text = await file.text();
+        let lines = text.split(/\r?\n/);
+        
+        let headerIdx = -1;
+        for(let i=0; i < Math.min(20, lines.length); i++) {
+            if(lines[i].toUpperCase().includes('FECHA') || lines[i].toUpperCase().includes('META')) {
+                headerIdx = i; break;
+            }
+        }
+        
+        if(headerIdx === -1) return alert("❌ No encontré las columnas FECHA, META, TIKTOK o GOOGLE en el archivo.");
+
+        let headers = splitCSV(lines[headerIdx]).map(x => x.trim().toUpperCase());
+        let idxFecha = headers.findIndex(h => h.includes('FECHA'));
+        let idxFb = headers.findIndex(h => h.includes('META'));
+        let idxTt = headers.findIndex(h => h.includes('TIKTOK'));
+        let idxGg = headers.findIndex(h => h.includes('GOOGLE'));
+
+        let count = 0;
+
+        for(let i = headerIdx + 1; i < lines.length; i++) {
+            if(!lines[i].trim()) continue;
+            let cols = splitCSV(lines[i]);
+            
+            let rawDateStr = cols[idxFecha] ? cols[idxFecha].replace(/["']/g, '') : '';
+            let dateStr = standardizeDateBulk(rawDateStr);
+            
+            if(!dateStr) continue;
+            if(!database[dateStr]) database[dateStr] = { fb: '', tt: '', gg: '' };
+
+            if(idxFb !== -1 && cols[idxFb]) {
+                let fVal = parseFloat(cols[idxFb].replace(/,/g, ''));
+                database[dateStr].fb = isNaN(fVal) ? '' : fVal;
+            }
+            if(idxTt !== -1 && cols[idxTt]) {
+                let tVal = parseFloat(cols[idxTt].replace(/,/g, ''));
+                database[dateStr].tt = isNaN(tVal) ? '' : tVal;
+            }
+            if(idxGg !== -1 && cols[idxGg]) {
+                let gVal = parseFloat(cols[idxGg].replace(/,/g, ''));
+                database[dateStr].gg = isNaN(gVal) ? '' : gVal;
+            }
+            
+            count++;
+        }
+
+        localStorage.setItem('adsDatabaseMaster', JSON.stringify(database));
+        renderTable();
+        closeModal('syncModal');
+        fileInput.value = '';
+        alert(`✅ ¡Sincronización exitosa! Se llenaron ${count} días.`);
+    }
+
+    async function processDailyLooker() {
+        const targetDate = document.getElementById('targetDate').value;
+        const fileInput = document.getElementById('lookerFiles');
+        if(!targetDate) return alert("❌ Selecciona la fecha.");
+        if(fileInput.files.length === 0) return alert("❌ Adjunta archivos.");
+        if(!database[targetDate]) database[targetDate] = { fb: '', tt: '', gg: '' };
+        
+        for(let file of fileInput.files) {
+            let text = await file.text();
+            let name = file.name.toUpperCase();
+            let platform = name.includes('FB') || name.includes('META') ? 'fb' : 
+                           name.includes('TT') || name.includes('TIKTOK') ? 'tt' : 
+                           name.includes('GG') || name.includes('GOOGLE') ? 'gg' : '';
+            if(!platform) continue;
+
+            let lines = text.split(/\r?\n/);
+            if(lines.length < 2) continue;
+            let h = splitCSV(lines[0]).map(x => x.trim().toUpperCase());
+            let idxNetRev = h.findIndex(x => x.includes('NETREV'));
+            if(idxNetRev === -1) continue;
+
+            let total = 0;
+            for(let i = 1; i < lines.length; i++) {
+                if(!lines[i].trim()) continue;
+                let val = parseFloat(splitCSV(lines[i])[idxNetRev].replace(/["']/g, ''));
+                if(!isNaN(val)) total += val;
+            }
+            
+            let currentVal = parseFloat(database[targetDate][platform]) || 0;
+            database[targetDate][platform] = (currentVal + total).toFixed(2);
+        }
+        renderTable(); closeModal('dailyModal'); fileInput.value = '';
+    }
+    
+    init();
+</script>
+</body>
+</html>
