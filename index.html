@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📊 Dashboard Comisiones</title>
-    <!-- Librería Profesional de Gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { 
@@ -53,9 +52,16 @@
         .summary-row { background: #f0fdf4; border-top: 2px solid var(--success);}
         .summary-row td { font-weight: bold; font-size: 16px; color: #166534; }
 
-        /* MÓDULO FINANCIERO */
-        .finance-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); overflow: hidden;}
+        /* MÓDULO FINANCIERO - AHORA ES FLOTANTE (STICKY) */
+        .finance-panel { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            position: sticky; 
+            bottom: 15px; 
+            z-index: 1000;
+        }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid var(--border); overflow: hidden;}
         
         .card h3 { 
             background: linear-gradient(90deg, #1e293b, #334155); 
@@ -103,7 +109,6 @@
 
 <div class="tabs" id="monthTabs"></div>
 
-<!-- Gráfica Profesional -->
 <div class="chart-container" id="chartWrapper">
     <canvas id="performanceChart"></canvas>
 </div>
@@ -111,8 +116,7 @@
 <div class="container">
     <table>
         <thead id="tableHead">
-            <!-- Se llena por JS -->
-        </thead>
+            </thead>
         <tbody id="tableBody"></tbody>
         <tfoot>
             <tr class="summary-row">
@@ -172,7 +176,6 @@
     </div>
 </div>
 
-<!-- Modal 1: Archivo Looker -->
 <div class="modal-overlay" id="dailyModal">
     <div class="modal">
         <h2>Inyección Diaria</h2>
@@ -186,7 +189,6 @@
     </div>
 </div>
 
-<!-- Modal 2: Importación Masiva -->
 <div class="modal-overlay" id="syncModal">
     <div class="modal">
         <h2>Sincronización Maestra</h2>
@@ -224,8 +226,8 @@
         database = {};
     }
 
-    let savedRate = localStorage.getItem('exchangeRateMaster') || 6540.45;
-    document.getElementById('exchange-rate').value = savedRate;
+    // MODIFICACIÓN 1: El Tipo de Cambio ahora se guarda en un diccionario por cada mes
+    let exchangeRates = JSON.parse(localStorage.getItem('exchangeRatesPerMonth')) || {};
     
     let chartInstance = null; 
 
@@ -287,6 +289,9 @@
         const financePanel = document.getElementById('financePanel');
         body.innerHTML = '';
         const monthData = months[currentMonthIdx];
+
+        // Se carga el tipo de cambio del mes actual en la vista, sino por defecto 6540.45
+        document.getElementById('exchange-rate').value = exchangeRates[monthData.id] || 6540.45;
         
         let totalFb = 0, totalTt = 0, totalGg = 0, totalGlobal = 0;
         let daysWithDataCount = 0;
@@ -409,8 +414,12 @@
         let dailyNeeded = diferencia / daysLeft;
         
         let comisionUSD = reachedCount * 200;
+        
+        // Se guarda el tipo de cambio escrito por el usuario en el diccionario del mes actual
         let rate = parseFloat(document.getElementById('exchange-rate').value) || 0;
-        localStorage.setItem('exchangeRateMaster', rate); 
+        exchangeRates[months[currentMonthIdx].id] = rate;
+        localStorage.setItem('exchangeRatesPerMonth', JSON.stringify(exchangeRates)); 
+        
         let comisionPYG = comisionUSD * rate;
 
         document.getElementById('next-milestone').innerText = `$${target.toLocaleString('en-US')}`;
