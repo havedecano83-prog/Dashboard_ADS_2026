@@ -11,6 +11,7 @@
             --success: #10b981; --warning: #f59e0b; --danger: #dc2626; 
             --bg: #f8fafc; --card-bg: #ffffff; --text: #334155; --border: #e2e8f0;
             --purple: #8b5cf6; --purple-hover: #7c3aed;
+            --orange: #f59e0b; --orange-hover: #d97706;
         }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
@@ -26,6 +27,8 @@
         .btn-sync:hover { background: var(--purple-hover); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);}
         .btn-save { background: var(--success); color: white; }
         .btn-save:hover { background: #059669; }
+        .btn-restore { background: var(--orange); color: white; }
+        .btn-restore:hover { background: var(--orange-hover); }
 
         .tabs { display: flex; gap: 8px; margin-bottom: 0; overflow-x: auto; padding-left: 10px; padding-bottom: 5px; }
         .tab { padding: 12px 20px; background: #e2e8f0; border: none; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: 700; color: #475569; transition: 0.3s; font-size: 13px; white-space: nowrap; }
@@ -104,6 +107,8 @@
         <button class="btn btn-import" onclick="openModal('dailyModal')">➕ Archivo Looker</button>
         <button class="btn btn-sync" onclick="openModal('syncModal')">📥 Importar Mes Completo</button>
         <button class="btn btn-save" onclick="saveData()">💾 Guardar Sistema</button>
+        <button class="btn btn-restore" onclick="document.getElementById('backupFileInput').click()">🔄 Restaurar Backup</button>
+        <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="restoreBackup(event)">
     </div>
 </div>
 
@@ -192,8 +197,8 @@
 <div class="modal-overlay" id="syncModal">
     <div class="modal">
         <h2>Sincronización Maestra</h2>
-        <p style="font-size:13px; color:#64748b; margin-top:-5px;">Sube tu planilla mensual (CSV) <strong>o un Backup (.json)</strong> para restaurar tus datos si el navegador los borró.</p>
-        <div class="form-group"><label>Adjuntar Archivo:</label><input type="file" id="masterFile" accept=".csv, .json"></div>
+        <p style="font-size:13px; color:#64748b; margin-top:-5px;">Sube tu planilla mensual (CSV).</p>
+        <div class="form-group"><label>Adjuntar Archivo:</label><input type="file" id="masterFile" accept=".csv"></div>
         <div class="modal-buttons">
             <button class="btn btn-cancel" onclick="closeModal('syncModal')">Cancelar</button>
             <button class="btn btn-sync" onclick="processMasterCSV()">Importar Datos</button>
@@ -217,7 +222,7 @@
     let currentMonthIdx = 0; 
     let database = {};
     
-    // Motor de carga seguro
+    // Motor de carga súper blindado
     try {
         let stored = localStorage.getItem('adsDatabaseMaster');
         if (stored) database = JSON.parse(stored);
@@ -226,8 +231,14 @@
         database = {};
     }
 
-    // MODIFICACIÓN 1: El Tipo de Cambio ahora se guarda en un diccionario por cada mes
-    let exchangeRates = JSON.parse(localStorage.getItem('exchangeRatesPerMonth')) || {};
+    let exchangeRates = {};
+    try {
+        let storedRates = localStorage.getItem('exchangeRatesPerMonth');
+        if (storedRates) exchangeRates = JSON.parse(storedRates);
+    } catch(e) {
+        console.error("Error leyendo exchange rates", e);
+        exchangeRates = {};
+    }
     
     let chartInstance = null; 
 
@@ -290,7 +301,6 @@
         body.innerHTML = '';
         const monthData = months[currentMonthIdx];
 
-        // Se carga el tipo de cambio del mes actual en la vista, sino por defecto 6540.45
         document.getElementById('exchange-rate').value = exchangeRates[monthData.id] || 6540.45;
         
         let totalFb = 0, totalTt = 0, totalGg = 0, totalGlobal = 0;
@@ -415,7 +425,6 @@
         
         let comisionUSD = reachedCount * 200;
         
-        // Se guarda el tipo de cambio escrito por el usuario en el diccionario del mes actual
         let rate = parseFloat(document.getElementById('exchange-rate').value) || 0;
         exchangeRates[months[currentMonthIdx].id] = rate;
         localStorage.setItem('exchangeRatesPerMonth', JSON.stringify(exchangeRates)); 
@@ -464,7 +473,26 @@
         document.body.appendChild(dlAnchorElem);
         dlAnchorElem.click();
         dlAnchorElem.remove();
-        alert("✅ Datos guardados y archivo de Backup descargado. Si el navegador borra tu historial, podrás usar este archivo en 'Importar Mes Completo' para recuperar todo."); 
+        alert("✅ Datos guardados y archivo de Backup descargado."); 
+    }
+
+    // MODIFICACIÓN 2: Lógica dedicada para el nuevo botón "Restaurar Backup"
+    async function restoreBackup(event) {
+        let file = event.target.files[0];
+        if (!file) return;
+        
+        try {
+            let text = await file.text();
+            let importedData = JSON.parse(text);
+            database = { ...database, ...importedData };
+            localStorage.setItem('adsDatabaseMaster', JSON.stringify(database));
+            renderTable();
+            event.target.value = ''; // Limpiar el input para permitir volver a subir el mismo archivo si es necesario
+            alert("✅ Backup restaurado exitosamente. Se recuperaron todos tus datos.");
+        } catch(e) {
+            alert("❌ Error: El archivo seleccionado no es un Backup válido o está dañado.");
+            event.target.value = '';
+        }
     }
 
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
@@ -502,22 +530,6 @@
         if(fileInput.files.length === 0) return alert("❌ Sube el archivo.");
         
         let file = fileInput.files[0];
-
-        if(file.name.endsWith('.json')) {
-            let text = await file.text();
-            try {
-                let importedData = JSON.parse(text);
-                database = { ...database, ...importedData };
-                localStorage.setItem('adsDatabaseMaster', JSON.stringify(database));
-                renderTable();
-                closeModal('syncModal');
-                fileInput.value = '';
-                return alert("✅ Backup restaurado exitosamente. Se recuperaron tus datos.");
-            } catch(e) {
-                return alert("❌ Error: Archivo de Backup no válido.");
-            }
-        }
-
         let text = await file.text();
         let lines = text.split(/\r?\n/);
         
